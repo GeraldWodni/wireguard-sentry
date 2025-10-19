@@ -11,10 +11,93 @@ def signal_handler(signal, frame):
     print( f"Interrupted by {signal}, stopping" )
     exit_event.set()
 
+class Peer:
+    knownParameters = [
+        "PrivateKey",
+        "ListenPort",
+        "FwMark",
+        "PublicKey",
+        "PresharedKey",
+        "AllowedIPs",
+        "Endpoint",
+        "PersistentKeepalive"
+    ]
+    def __init__( self, firstLine ):
+        self.enabled = firstLine[0] != "#"
+        self.lines = [ { "type": "peer", "line": firstLine if self.enabled else firstLine[1:] } ]
+        self.parameters = {}
+        # We will only toggle the comments for known parameters, to avoid uncommenting real comments
+        # https://deepwiki.com/WireGuard/wireguard-tools/3.1-configuration-file-format
+
+    def __repr__( self ):
+        return self.get_host()
+
+    def print( self ):
+        prefix = "" if self.enabled else "#"
+        for line in self.lines:
+            if line["type"] == "string":
+                print( line["line"] )
+            else:
+                print( prefix + line["line"] )
+                
+
+    def add_line( self, line ):
+        matched = False
+        for knownParameter in Peer.knownParameters:
+            if knownParameter.lower() in line.lower():
+                if line[0] == "#":
+                    line = line[1:]
+                self.parameters[ knownParameter ] = line.split("=")[1].strip()
+                matched = True
+                self.lines.append( { "type": knownParameter, "line": line } )
+                break
+
+        if not matched:
+            self.lines.append( { "type": "string", "line": line } )
+
+    def get_host( self ):
+        return self.parameters[ "Endpoint" ].split(":")[0].strip()
+
+class Config:
+    def __init__( self, filename ):
+        self.filename = filename
+        self.read()
+
+    def read( self ):
+        self.prefix = []
+        self.peers = []
+        currentPeer = None
+        with open( self.filename, "r" ) as file:
+            lines = file.read().splitlines()
+            for line in lines:
+                if "[Peer]" in line:
+                    currentPeer = Peer( line )
+                    self.peers.append( currentPeer )
+                elif currentPeer != None:
+                    currentPeer.add_line( line )
+                else:
+                    self.prefix.append( line )
+
+    def print( self ):
+        for line in self.prefix:
+            print( line )
+        for peer in self.peers:
+            peer.print()
+
+    def get_hosts( self ):
+        return list(map( lambda p: p.get_host(), self.peers ))
+
+    def get_active_host( self ):
+        for peer in self.peers:
+            if peer.enabled:
+                return peer.get_host()
+
+    def set_active_host( self, host ):
+        for peer in self.peers:
+            peer.enabled = peer.get_host() == host
+
 class Sentry:
     def __init__( self, hosts ):
-        self.hosts = hosts
-
         # constants (make configurable?)
         self.interval=2.5
         self.timeout=0.005
@@ -26,7 +109,13 @@ class Sentry:
         self.fail_max = 99
 
         print( "Reading Config..." )
-        # TODO: read WG-config
+        #self.config = Config( "/home/fiz/python/wireguard-sentry/test/demo.conf" )
+        self.config = Config( "test/demo.conf" )
+
+        self.hosts = self.config.get_hosts()
+        self.active_host = self.config.get_active_host()
+
+        self.config.print()
 
         # Initialize okays/fails
         self.host_fails = {}
@@ -34,10 +123,6 @@ class Sentry:
         for host in self.hosts:
             self.host_fails[ host ] = 0
             self.host_okays[ host ] = 0
-
-        self.active_host = self.hosts[0]
-
-        # graceful exit sleep
 
     def host_add_okay( self, host ):
         self.host_fails[ host ] = 0
@@ -69,8 +154,10 @@ class Sentry:
 
     def switch_active( self, host ):
         last = self.active_host
-        self.active_host = host
         print( f"Switching from {last} to {host}" )
+        self.active_host = host
+        self.config.set_active_host( host )
+        self.config.print()
 
     def select_active( self ):
         for i, host in enumerate( self.hosts ):
