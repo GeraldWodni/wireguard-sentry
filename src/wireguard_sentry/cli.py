@@ -12,6 +12,8 @@ def signal_handler(signal, frame):
     exit_event.set()
 
 class Peer:
+    # We will only toggle the comments for known parameters, to avoid uncommenting real comments
+    # https://deepwiki.com/WireGuard/wireguard-tools/3.1-configuration-file-format
     knownParameters = [
         "PrivateKey",
         "ListenPort",
@@ -26,19 +28,25 @@ class Peer:
         self.enabled = firstLine[0] != "#"
         self.lines = [ { "type": "peer", "line": firstLine if self.enabled else firstLine[1:] } ]
         self.parameters = {}
-        # We will only toggle the comments for known parameters, to avoid uncommenting real comments
-        # https://deepwiki.com/WireGuard/wireguard-tools/3.1-configuration-file-format
 
     def __repr__( self ):
         return self.get_host()
+
+    def write( self, file ):
+        prefix = "" if self.enabled else "#"
+        for line in self.lines:
+            if line["type"] == "string":
+                file.write( line["line"] )
+            else:
+                file.write( prefix + line["line"] )
 
     def print( self ):
         prefix = "" if self.enabled else "#"
         for line in self.lines:
             if line["type"] == "string":
-                print( line["line"] )
+                print( line["line"][:-1] )
             else:
-                print( prefix + line["line"] )
+                print( prefix + line["line"][:-1] )
                 
 
     def add_line( self, line ):
@@ -68,8 +76,7 @@ class Config:
         self.peers = []
         currentPeer = None
         with open( self.filename, "r" ) as file:
-            lines = file.read().splitlines()
-            for line in lines:
+            for line in file:
                 if "[Peer]" in line:
                     currentPeer = Peer( line )
                     self.peers.append( currentPeer )
@@ -78,9 +85,16 @@ class Config:
                 else:
                     self.prefix.append( line )
 
+    def write( self ):
+        with open( self.filename, "w" ) as file:
+            for line in self.prefix:
+                file.write( line )
+            for peer in self.peers:
+                peer.write( file )
+
     def print( self ):
         for line in self.prefix:
-            print( line )
+            print( line[:-1] )
         for peer in self.peers:
             peer.print()
 
@@ -149,7 +163,10 @@ class Sentry:
             result = self.ping_host( host )
             print( " ", host, end="-" )
             print( "_OK_" if result else "FAIL", end="#" )
-            print( self.host_okays[host] if result else self.host_fails[host], end=" " )
+            num = self.host_okays[host] if result else self.host_fails[host]
+            if num < 10 :
+                num = "_" + repr(num)
+            print( num, end=" ")
         print("")
 
     def switch_active( self, host ):
@@ -157,7 +174,7 @@ class Sentry:
         print( f"Switching from {last} to {host}" )
         self.active_host = host
         self.config.set_active_host( host )
-        self.config.print()
+        self.config.write()
 
     def select_active( self ):
         for i, host in enumerate( self.hosts ):
