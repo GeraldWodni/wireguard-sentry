@@ -7,13 +7,22 @@ What about making that redundant with multiple servers and many clients? Oh wow 
 
 Well traveller, you found a repo which fixes that issue!
 
-## Functionality
-This script checks each of your servers in an ordered list. If the first one goes offline, it will switch to the next one and so on.
-Should the first become reachable again, it will switch back after some hysteresis.
+## Howto:
+- Install by curl (TODO)github-raw | bash
+- `systemd start wireguard-sentry@wg0`
+- `systemd enable wireguard-sentry@wg0`
 
 ## Usage
 Configure your wireguard with multiple hosts (must be the same order on each host).
 Start this script as systemd-process with the wireguard-network-name and enjoy.
+
+## Function
+This script checks each of your servers in an ordered list. If the first one goes offline, it will switch to the next one and so on.
+Should the first become reachable again, it will switch back after some hysteresis.
+
+Switching happens by commenting in or out the corresponding `[Peer]` section.
+Afterwards wireguard is signaled to re-read the configuration by
+
 
 ## Sources
 Haven't done python since a long time, this is the first time I am using this new newfangled-`uv` system.
