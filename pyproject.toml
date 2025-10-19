@@ -1,0 +1,18 @@
+[project]
+name = "wireguard-sentry"
+version = "0.1.0"
+description = "Peer-server switcher for multi-hub-spoke model wireguard networks"
+readme = "README.md"
+authors = [
+    { name = "Gerald Wodni", email = "gerald.wodni@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+wireguard-sentry = "wireguard_sentry:main"
+wireguard-sentry-cli = "wireguard_sentry.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9.3,<0.10.0"]
+build-backend = "uv_build"
