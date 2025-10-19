@@ -1,9 +1,9 @@
+import os
+import sys
 import signal
 from threading import Event
 from time import sleep
 from ping3 import ping
-
-hosts = ["google.com", "say.what", "localhost"]
 
 exit_event = Event()
 
@@ -111,7 +111,10 @@ class Config:
             peer.enabled = peer.get_host() == host
 
 class Sentry:
-    def __init__( self, hosts ):
+    def __init__( self, wireguardName ):
+        self.wireguardName = wireguardName
+        print( f"Using wireguard network {self.wireguardName}" )
+
         # constants (make configurable?)
         self.interval=2.5
         self.timeout=0.005
@@ -123,8 +126,7 @@ class Sentry:
         self.fail_max = 99
 
         print( "Reading Config..." )
-        #self.config = Config( "/home/fiz/python/wireguard-sentry/test/demo.conf" )
-        self.config = Config( "test/demo.conf" )
+        self.config = Config( f"/etc/wireguard/{self.wireguardName}.conf" )
 
         self.hosts = self.config.get_hosts()
         self.active_host = self.config.get_active_host()
@@ -171,16 +173,24 @@ class Sentry:
 
     def switch_active( self, host ):
         last = self.active_host
+        if last == host:
+            print( f"Would switch from {last} to {host}, but already active" )
+            return
         print( f"Switching from {last} to {host}" )
         self.active_host = host
         self.config.set_active_host( host )
         self.config.write()
+        os.system( f"wg syncconf {self.wireguardName} <(wg-quick strip {self.wireguardName})" )
 
     def select_active( self ):
         for i, host in enumerate( self.hosts ):
             # first host okay, stay as is
             if host == self.active_host and i == 0 and self.host_fails[ host ] < self.fail_retries:
                 return 
+
+            # current host okay, stay as is
+            if host == self.active_host and self.host_fails[ host ] < self.fail_retries:
+                return
 
             # take next host, but only if okay enough
             if host != self.active_host and self.host_okays[host] >= self.okay_retries:
@@ -200,7 +210,7 @@ class Sentry:
 def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    sentry = Sentry( hosts )
+    sentry = Sentry( sys.argv[-1:][0] )
     sentry.run()
 
 if __name__ == "__main__":
