@@ -7,7 +7,9 @@ authors = [
     { name = "Gerald Wodni", email = "gerald.wodni@gmail.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "ping3>=5.1.5",
+]
 
 [project.scripts]
 wireguard-sentry = "wireguard_sentry:main"
